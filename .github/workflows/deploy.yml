@@ -1,0 +1,133 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fullstack_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install backend dependencies
+      run: |
+        cd backend
+        npm install
+    
+    - name: Run backend tests
+      run: |
+        cd backend
+        npm test
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: fullstack_db
+        DB_USER: postgres
+        DB_PASSWORD: postgres
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm install
+    
+    - name: Run frontend tests
+      run: |
+        cd frontend
+        npm test -- --coverage
+    
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+
+  build-and-push:
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build and push backend
+      uses: docker/build-push-action@v4
+      with:
+        context: ./backend
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/fullstack-backend:latest
+          ${{ secrets.DOCKER_USERNAME }}/fullstack-backend:${{ github.sha }}
+    
+    - name: Build and push frontend
+      uses: docker/build-push-action@v4
+      with:
+        context: ./frontend
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/fullstack-frontend:latest
+          ${{ secrets.DOCKER_USERNAME }}/fullstack-frontend:${{ github.sha }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploy to Heroku
+      run: |
+        # Install Heroku CLI
+        curl https://cli-assets.heroku.com/install.sh | sh
+        
+        # Login to Heroku
+        echo "${{ secrets.HEROKU_API_KEY }}" | heroku auth:login
+        
+        # Deploy backend
+        heroku container:push web -a ${{ secrets.HEROKU_APP_NAME_BACKEND }}
+        heroku container:release web -a ${{ secrets.HEROKU_APP_NAME_BACKEND }}
+        
+        # Run migrations
+        heroku run "npm run migrate" -a ${{ secrets.HEROKU_APP_NAME_BACKEND }}

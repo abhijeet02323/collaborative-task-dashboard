@@ -1,0 +1,36 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Full-stack application backend with JWT authentication and CRUD operations",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest --coverage",
+    "migrate": "node src/migrations/runMigrations.js"
+  },
+  "keywords": [
+    "api",
+    "jwt",
+    "authentication",
+    "crud",
+    "express"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "pg": "^8.10.0",
+    "swagger-jsdoc": "^6.2.5",
+    "swagger-ui-express": "^4.6.2"
+  },
+  "devDependencies": {
+    "jest": "^29.5.0",
+    "nodemon": "^2.0.22"
+  }
+}
